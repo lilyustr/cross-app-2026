@@ -38,5 +38,5 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
 
 ## Запуск застосунку
   bash
-dotnet build
-dotnet run --project src/Cli
+`dotnet build`
+`dotnet run --project src/Cli`
