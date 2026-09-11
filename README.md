@@ -40,3 +40,29 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
   bash
 `dotnet build`
 `dotnet run --project src/Cli`
+
+
+
+
+## Лабораторна робота 2: Бібліотека Core та режими публікації
+
+### Структура рішення
+- `src/Core` — class library (Multi-targeting: `net8.0`, `net10.0`), містить логіку збору інформації про середовище (`EnvironmentInfo`, `EnvironmentReport`).
+- `src/Cli` — консольний застосунок, що взаємодіє з бібліотекою `Core` через `ProjectReference` та відповідає лише за вивід інформації (текст/JSON).
+
+### Структура каталогу Core
+- `Core/Dto/` — record-типи для передачі даних (лабораторна 3).
+- `Core/Domain/` — бізнес-моделі предметної області "Склад" (лабораторна 4).
+- `Core/Storage/` — сховища та сервіси доступу до даних (лабораторна 5).
+
+### Порівняння режимів публікації (RID: win-x64)
+
+| Режим | Розмір каталогу | Наявність .NET Runtime | Призначення |
+| :--- | :--- | :--- | :--- |
+| **Self-contained** | 78 МБ | Не потрібен (вбудований у пакет) | Повна автономність для клієнтських машин без встановленого .NET. |
+| **Framework-dependent** | 213 КБ | Потрібен встановлений .NET 10 | Мінімальний розмір артефакту за рахунок системного рантайму. |
+
+### Команди для збірки та запуску
+- Запуск CLI: `dotnet run --project src/Cli`
+- Публікація Self-contained: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained true -o publish/self-contained`
+- Публікація Framework-dependent: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained false -o publish/framework-dependent` `./publish/self-contained/Cli.exe`
