@@ -66,3 +66,11 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
 - Запуск CLI: `dotnet run --project src/Cli`
 - Публікація Self-contained: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained true -o publish/self-contained`
 - Публікація Framework-dependent: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained false -o publish/framework-dependent` `./publish/self-contained/Cli.exe`
+
+
+ 
+### Додаткові завдання lab2
+* **Trimming:** розмір зменшено з 71 MB до 13 MB. Отримано warning `IL2026` (`JsonSerializer.Serialize`). Trimming небезпечний для рефлексії, бо видаляє типи й методи, що не мають статичних викликів у коді, що веде до помилок у runtime.
+* **Multi-targeting та умовна компіляція:** реалізовано константу `BuildNote` через `#if NET10_0_OR_GREATER`.
+  * `net10.0`: виводить `збірка під net10.0` (CLR 10.0.12)
+  * `net8.0`: виводить `збірка під net8.0` (CLR 8.0.16)

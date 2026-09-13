@@ -33,6 +33,7 @@ Console.WriteLine($"Runtime          : {report.FrameworkDescription}");
 Console.WriteLine($"Архітектура      : {report.ProcessArchitecture}");
 Console.WriteLine($"RID (визначено)  : {report.DetectedRid}");
 Console.WriteLine($"RID (від .NET)   : {report.ReportedRid}");
+Console.WriteLine($"Примітка збірки  : {report.BuildNote}");
 Console.WriteLine($"Каталог          : {report.BaseDirectory}");
 Console.WriteLine(new string ('-', 52));
 Console.WriteLine("Предметна область: Склад (Product, StockBatch, Warehouse, Movement)");
