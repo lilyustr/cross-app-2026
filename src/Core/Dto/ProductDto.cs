@@ -5,5 +5,4 @@ public record ProductDto(
     string Name,
     string Unit, 
     int Quantity,
-    string? Note = null
-);
+    string? Note = null) : IStorageRecord;
