@@ -48,29 +48,31 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
 
 ### Структура рішення
 - `src/Core` — class library (Multi-targeting: `net8.0`, `net10.0`), містить логіку збору інформації про середовище (`EnvironmentInfo`, `EnvironmentReport`).
-- `src/Cli` — консольний застосунок, що взаємодіє з бібліотекою `Core` через `ProjectReference` та відповідає лише за вивід інформації (текст/JSON).
+- `src/Cli` — консольний застосунок, що взаємодіє з бібліотекою `Core` через `ProjectReference` та відповідає за вивід інформації (текст/JSON).
 
 ### Структура каталогу Core
 - `Core/Dto/` — record-типи для передачі даних (лабораторна 3).
 - `Core/Domain/` — бізнес-моделі предметної області "Склад" (лабораторна 4).
 - `Core/Storage/` — сховища та сервіси доступу до даних (лабораторна 5).
 
-### Порівняння режимів публікації (RID: win-x64)
+### Порівняння режимів публікації
 
-| Режим | Розмір каталогу | Наявність .NET Runtime | Призначення |
-| :--- | :--- | :--- | :--- |
-| **Self-contained** | 78 МБ | Не потрібен (вбудований у пакет) | Повна автономність для клієнтських машин без встановленого .NET. |
-| **Framework-dependent** | 213 КБ | Потрібен встановлений .NET 10 | Мінімальний розмір артефакту за рахунок системного рантайму. |
+| RID | Режим | Розмір publish | Потрібен runtime | Призначення |
+| :--- | :--- | :--- | :--- | :--- |
+| **win-x64** | **Self-contained** | 78 МБ | ні | Повна автономність для систем без встановленого .NET. |
+| **win-x64** | **Framework-dependent** | 213 КБ | так (.NET 10) | Мінімальний розмір завдяки використанню системного рантайму. |
+| **win-x64** | **Single-file** | 71 МБ | ні | Зручність розповсюдження: один монолітний файл `Cli.exe`. |
+| **win-x64** | **Single-file + Trimmed** | 13 МБ | ні | Максимальна оптимізація розміру (видалено невикористовуваний BCL). |
 
 ### Команди для збірки та запуску
 - Запуск CLI: `dotnet run --project src/Cli`
 - Публікація Self-contained: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained true -o publish/self-contained`
-- Публікація Framework-dependent: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained false -o publish/framework-dependent` `./publish/self-contained/Cli.exe`
+- Публікація Framework-dependent: `dotnet publish src/Cli -c Release -r win-x64 -f net10.0 --self-contained false -o publish/framework-dependent`
+- Прямий запуск скомпільованого файлу: `./publish/self-contained/Cli.exe`
 
-
- 
 ### Додаткові завдання lab2
-* **Trimming:** розмір зменшено з 71 MB до 13 MB. Отримано warning `IL2026` (`JsonSerializer.Serialize`). Trimming небезпечний для рефлексії, бо видаляє типи й методи, що не мають статичних викликів у коді, що веде до помилок у runtime.
-* **Multi-targeting та умовна компіляція:** реалізовано константу `BuildNote` через `#if NET10_0_OR_GREATER`.
-  * `net10.0`: виводить `збірка під net10.0` (CLR 10.0.12)
-  * `net8.0`: виводить `збірка під net8.0` (CLR 8.0.16)
+* **Single-file:** прапорець `-p:PublishSingleFile=true` упакував усі залежності та runtime в один файл `Cli.exe` (розмір папки — 71 МБ). Програма успішно запускається автономно.
+* **Trimming:** прапорець `-p:PublishTrimmed=true` зменшив розмір з 71 МБ до 13 МБ. Отримано warning `IL2026` (`JsonSerializer.Serialize`). Trimming небезпечний для коду з рефлексією, оскільки IL Linker видаляє типи й методи без явних статичних посилань, що призводить до збоїв у runtime під час динамічного виклику.
+* **Multi-targeting та умовна компіляція:** у `src/Core` реалізовано властивість `BuildNote` через препроцесорні директиви `#if NET10_0_OR_GREATER` та `#else`:
+  * `net10.0`: виводить `збірка під net10.0` (Runtime: .NET 10.0.12)
+  * `net8.0`: виводить `збірка під net8.0` (Runtime: .NET 8.0.16)

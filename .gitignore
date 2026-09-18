@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 publish/
+publish_linux/
+publish_win/
+publish*/
