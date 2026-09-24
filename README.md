@@ -76,3 +76,19 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
 * **Multi-targeting та умовна компіляція:** у `src/Core` реалізовано властивість `BuildNote` через препроцесорні директиви `#if NET10_0_OR_GREATER` та `#else`:
   * `net10.0`: виводить `збірка під net10.0` (Runtime: .NET 10.0.12)
   * `net8.0`: виводить `збірка під net8.0` (Runtime: .NET 8.0.16)
+
+
+
+  ## Лабораторна робота 4: Доменна модель, інваріанти, інкапсуляція
+
+### Доменні сутності
+* **Product** — сутність товару зі складом та операціями зміни балансу (прихід, видача).
+
+### Таблиця інваріантів
+| Інваріант / Бізнес-правило | Тип винятку | Метод перевірки |
+| :--- | :--- | :--- |
+| Ідентифікатор, SKU, назва та одиниця вимірювання не можуть бути порожніми | `ArgumentException` | `Product.Create` |
+| Початковий залишок не може бути від'ємним (`< 0`) | `ArgumentOutOfRangeException` | `Product.Create` |
+| Кількість приходу товару має бути строго більшою за нуль (`<= 0`) | `ArgumentOutOfRangeException` | `Product.RegisterArrival` |
+| Кількість видачі товару має бути строго більшою за нуль (`<= 0`) | `ArgumentOutOfRangeException` | `Product.Issue` |
+| Не можна видати товару більше, ніж є на залишку (захист від перевитрати) | `InvalidOperationException` | `Product.Issue` |
