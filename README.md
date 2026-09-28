@@ -92,3 +92,8 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
 | Кількість приходу товару має бути строго більшою за нуль (`<= 0`) | `ArgumentOutOfRangeException` | `Product.RegisterArrival` |
 | Кількість видачі товару має бути строго більшою за нуль (`<= 0`) | `ArgumentOutOfRangeException` | `Product.Issue` |
 | Не можна видати товару більше, ніж є на залишку (захист від перевитрати) | `InvalidOperationException` | `Product.Issue` |
+
+### Додаткові завдання (Лабораторна 4)
+1. **Зв'язок із тижнем 3:** Реалізовано `ProductMapper.ToDomainEntities`, що конвертує `ImportResult<ProductDto>` у доменні сутності `Product` з перехопленням порушень інваріантів у список помилок.
+2. **Інваріант двох сутностей:** Реалізовано перевірку ліміту місткості складу `Warehouse.Capacity` при розміщенні товару `Product`. Логіку винесено за межі сутностей (прообраз сервісу) для дотримання SRP та уникнення жорсткої зв'язаності.
+3. **Керування станом через switch expression:** Реалізовано `StockReceipt` з перелічуванням `StockReceiptStatus` (Draft -> Confirmed -> Cancelled) та валідацією допустимих переходів за допомогою tuple switch pattern.
