@@ -4,7 +4,7 @@ using Core.Dto;
 
 public static class ProductMapper
 {
-    public static (List<Product> Items, List<string> Errors) ToDomainEntities(ImportResult<ProductDto> importResult)
+    public static (IReadOnlyList<Product> Items, IReadOnlyList<string> Errors) ToDomainEntities(ImportResult<ProductDto> importResult)
     {
         var domainEntities = new List<Product>();
         var errors = new List<string>(importResult.Errors);
