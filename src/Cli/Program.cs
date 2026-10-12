@@ -1,51 +1,114 @@
-﻿using Cli;
+﻿using System;
+using System.IO;
+using Cli;
 using Core.Services;
+using Core.Events;
+using Cli.Sinks;
+using Core.Abstractions;
 
-// 1. Створення сховища через StoreFactory (Індивідуальне завдання 3)
+// 1. Створення сховища через StoreFactory
 var store = StoreFactory.Create(args);
 var service = new CatalogService(store);
 
-Console.WriteLine($"=== Активне сховище: {store.GetType().Name} ===");
+// 2. Налаштування шляху до файлу логування 
+var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
+Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 
-// 2. Успішний базовий сценарій: додавання та надходження
-Console.WriteLine("\n--- 1. Базовий сценарій: Add та Receive ---");
-var created = service.Add("SKU-101", "Кабель UTP cat6", "м", 50);
-Console.WriteLine($"Додано: {created.Id} [{created.Sku}] {created.Name} — {created.Quantity} {created.Unit}");
-
-service.Receive(created.Id, 25);
-Console.WriteLine($"Прийнято +25 од. Актуальний залишок: {service.Find(created.Id)?.Quantity} {created.Unit}");
-
-// 3. Вивід каталогу товарів
-Console.WriteLine("\n--- 2. Каталог товарів ---");
-foreach (var p in service.All())
+// 3. Локальний метод обробки події 
+void OnCatalogChanged(object? sender, CatalogChangedEventArgs e)
 {
-    Console.WriteLine($"  {p.Id,-10} {p.Sku,-10} {p.Name,-28} {p.Quantity,5} {p.Unit}");
+    // Форматування рядка:
+    var line = $"{e.At:HH:mm:ss} {e.Kind,-8} {e.Id} {e.Delta,4:+0;-0} → залишок {e.QuantityAfter}";
+    
+    // Вивід у консоль
+    Console.WriteLine(line);
+    
+    // Дописування рядка у файл logs/app.log
+    File.AppendAllText(logPath, line + Environment.NewLine);
 }
 
-// 4. Сценарій відмови з перехопленням у try/catch
-Console.WriteLine("\n--- 3. Сценарій відмови (try/catch) ---");
+// 4. Підписка 1 (консоль + файл)
+service.Changed += OnCatalogChanged;
+
+// 5. Підписка 2 (лямбда-лічильник із замиканням)
+int changes = 0;
+service.Changed += (_, _) => changes++;
+
+Console.WriteLine("=== 1. Початок сценарію (підписані обидва обробники) ===");
+
+// Створення та перші операції
+var created = service.Add("SKU-101", "Кабель UTP cat6", "м", 50);
+service.Receive(created.Id, 25);
+
+// Побачимо значення лічильника
+Console.WriteLine($"Подій отримано: {changes}"); 
+
+Console.WriteLine("\n=== 2. Відписка OnCatalogChanged та тиха операція ===");
+
+// Відписуємося від першого обробника
+service.Changed -= OnCatalogChanged;
+
+// Робимо операцію: запис у лог/консоль більше НЕ йде, але лямбда-лічильник працює!
+service.Receive(created.Id, 5);
+
+// Побачимо, що changes збільшився ще на 1
+Console.WriteLine($"Подій отримано: {changes}");
+
+// 6. Сценарій відмови
+Console.WriteLine("\n=== 3. Сценарій відмови (try/catch) ===");
 try
 {
-    Console.WriteLine("Спроба виконати прихід для неіснуючого товару 'NON-EXISTENT-ID'...");
-    service.Receive("NON-EXISTENT-ID", 10);
+    Console.WriteLine("Спроба виконати Receive з від'ємною кількістю (-10)...");
+    service.Receive(created.Id, -10);
 }
-catch (InvalidOperationException ex)
+catch (Exception ex)
 {
-    Console.WriteLine($"[OK] Очікувано перехоплено виняток: {ex.Message}");
+    Console.WriteLine($"[OK] Перехоплено виняток: {ex.Message}");
 }
 
-// 5. Пошук за параметром Func (Індивідуальне завдання 2)
-Console.WriteLine("\n--- 4. Пошук через Func (товари із залишком >= 100) ---");
-var abundant = service.Find(p => p.Quantity >= 100);
-foreach (var p in abundant)
+// 7. Пошук через Func
+Console.WriteLine("\n=== 4. Пошук товарів за допомогою Func (залишок < 100) ===");
+var lowStock = service.FindAll(p => p.Quantity < 100);
+foreach (var p in lowStock)
 {
-    Console.WriteLine($"  [{p.Sku}] {p.Name,-25} — {p.Quantity,5} {p.Unit}");
+    Console.WriteLine($"  [{p.Sku}] {p.Name} — {p.Quantity} {p.Unit}");
 }
 
-// 6. Перевірка кешування Decorator (Індивідуальне завдання 1)
-Console.WriteLine("\n--- 5. Робота CachingCatalogStore (GetById) ---");
-Console.WriteLine("Перший запит (пошук P-001):");
-service.Find("P-001");
+Console.WriteLine("\n=== 5. Додаткове завдання: INotificationSink (Ручний DI) ===");
 
-Console.WriteLine("Другий запит (повторний пошук P-001):");
-service.Find("P-001");
+// Створюємо ConsoleSink та FileSink
+INotificationSink consoleSink = new ConsoleSink();
+INotificationSink fileSink = new FileSink(logPath);
+
+// Створюємо окремий сервіс, передаючи Sink через конструктор (Ручний DI)
+var serviceWithSink = new CatalogServiceWithSink(store, consoleSink);
+
+// Викликаємо операцію — сповіщення піде прямо в ConsoleSink
+Console.WriteLine("Виклики через CatalogServiceWithSink:");
+serviceWithSink.Receive(created.Id, 10);
+
+// Також можемо використати FileSink
+var serviceWithFileSink = new CatalogServiceWithSink(store, fileSink);
+serviceWithFileSink.Receive(created.Id, 5);
+
+Console.WriteLine("\n=== 6. Додаткове завдання 2: Action<string> для пропущених рядків ===");
+
+// Створюємо тестовий CSV-файл із сумішшю коректних та битих рядків
+string sampleFilePath = Path.Combine(AppContext.BaseDirectory, "sample_import.csv");
+File.WriteAllLines(sampleFilePath, new[]
+{
+    "SKU-01;Кабель UTP;м;100",        // Коректний
+    "SKU-02;Розетка",                  // Недостатньо колонок
+    "SKU-03;Коробка;шт;-5",           // Від'ємна кількість
+    "",                                // Порожній рядок
+    "SKU-04;Патчкорд 1м;шт;50"        // Коректний
+});
+
+// Передаємо лямбда-вираз як Action<string>
+int importedCount = CatalogImporter.ImportCsv(sampleFilePath, reason =>
+{
+    // Отримуємо звіт про пропущені рядки прямо у викликаючому коді
+    Console.WriteLine($"  [ПРОПУЩЕНО] {reason}");
+});
+
+Console.WriteLine($"Успішно імпортовано рядків: {importedCount}");
