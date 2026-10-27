@@ -4,6 +4,7 @@ using Core.Events;
 
 namespace Cli.Sinks;
 
+// Sink, який виводить у консоль
 public class ConsoleSink : INotificationSink
 {
     public void Notify(CatalogChangedEventArgs e)
@@ -11,7 +12,7 @@ public class ConsoleSink : INotificationSink
         Console.WriteLine($"[ConsoleSink] {e.At:HH:mm:ss} {e.Kind,-8} {e.Id} {e.Delta,4:+0;-0} → залишок {e.QuantityAfter}");
     }
 }
-
+// Sink, який пише у файл
 public class FileSink : INotificationSink
 {
     private readonly string _filePath;

@@ -134,3 +134,100 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "${PWD}:/src" -w /src [mcr.microsoft.com/d
 ### 1. Запуск за замовчуванням (InMemory)
 ```bash
 dotnet run --project src/Cli
+```
+
+## Лабораторна робота №6: Подійно-орієнтована архітектура та делегати
+
+### 🚀 Основні результати
+
+* **Події та обробники (`Core.Events`):** Додано `CatalogChangedEventArgs` та подію `Changed` у `CatalogService`[cite: 1, 3]. У `src/Cli` реалізовано підписку на логування (консоль/файл) та лічильник подій із замиканням, а також перевірено відписку (`-=`)[cite: 1].
+* **Фільтрація та обробка помилок:** Реалізовано метод `FindAll` з фільтрацією через `Func<Product, bool>`, перевірено відсутність подій при помилках (`try/catch`)[cite: 3].
+
+### ⭐️ Додаткові завдання
+
+1. **`INotificationSink` (Ручний DI):** Реалізовано `ConsoleSink` і `FileSink`. На відміну від `event` (підтримує мультивещание та динамічну підписку), Sink фіксує єдиний канал сповіщень при створенні сервісу[cite: 1].
+2. **`Action<string>` Callback:** У `CatalogImporter.ImportCsv` додано параметр `Action<string>? onSkippedLine` для передачі діагностики пропущені рядків у викликаючий код.
+3. **Аналіз `async void`:** З'ясовано, що `async void` вимагається сигнатурою `EventHandler`, але є небезпечним через неможливість перехоплення винятків (`try/catch` не працює -> Crash), відсутність очікування (Fire-and-Forget) та ризик Race Conditions.
+
+---
+
+### 💻 Запуск
+
+```bash
+dotnet build
+dotnet run --project src/Cli 
+```
+
+
+
+# Лабораторна робота №7: Звіти та аналітика через LINQ to Objects
+
+## 📋 Команди для запуску та тестування в CLI
+
+Виконувати з кореневої папки проєкту:
+
+### Основні звіти 
+* Звіт Top-5 товарів за кількістю:
+  dotnet run --project src/Cli -- report-top
+
+* Звіт по дефіцитних товарах (< 10):
+  dotnet run --project src/Cli -- report-low
+
+* Згрупований звіт за одиницями виміру (GroupBy):
+  dotnet run --project src/Cli -- report-groups
+
+* Загальні підсумкові агрегати (сума, середнє, максимум):
+  dotnet run --project src/Cli -- report-sum
+
+### Додаткові звіти 
+* Зведений звіт GroupJoin (Товари × Переміщення):
+  dotnet run --project src/Cli -- report-join
+
+* Бенчмарк Stopwatch на 100 000 записів (ToList vs Lazy Execution):
+  dotnet run --project src/Cli -- report-bench
+
+### ⚙️ Граничні випадки CLI
+* Запуск без параметрів (автоматично спрацьовує report-top):
+  dotnet run --project src/Cli
+
+* Ігнорування прапорців конфігурації (наприклад, --file з 5-го тижня):
+  dotnet run --project src/Cli -- --file data.csv report-groups
+
+* Виклики з невідомою командою (вивід списку доступних команд):
+  dotnet run --project src/Cli -- report-unknown
+
+---
+
+## 💡 Пояснення відкладеного виконання (Deferred Execution)
+
+У коді LINQ-запит:
+  var query = source.Where(p => p.Quantity < 10);
+не виконується в момент його оголошення, а лише створює дерево виклику. Безпосереднє обчислення відбувається в момент виклику термінальних операторів, таких як Count() або ToList().
+
+Чому два виклики Count() дали різні числа:
+1. Перший виклик query.Count() проітерував початкову колекцію source і знайшов 3 дефіцитні товари.
+2. Після додавання нового елемента через source.Add(...) другий виклик query.Count() знову заново пройшовся по оновленій колекції source, тому повернув 4.
+3. Виклик query.ToList() матеріалізував (зафіксував) результати в окремому масиві в пам'яті, зробивши знімок snapshot незалежним від подальшого очищення source.Clear().
+
+---
+
+## 🚀 Реалізація додаткових завдань
+
+### 1. Зведений звіт через GroupJoin (Товари × Переміщення)
+* Реалізовано метод ProductMovementsSummary, який за допомогою GroupJoin об'єднує колекції Product та StockMovement.
+* Результат проєктується у DTO MovementSummary із розрахунком сумарного обсягу отриманого товару та кількості проведених операцій.
+
+### 2. Власний метод-розширення TopBy
+* Створено метод-розширення:
+  public static IEnumerable<T> TopBy<T, TKey>(this IEnumerable<T> source, Func<T, TKey> keySelector, int count)
+* Метод використано у двох звітах ReportService: TopByQuantity та TopLowStock.
+
+### 3. Порівняння Fluent Syntax vs Query Syntax
+* Звіт report-groups реалізовано у двох варіантах: ByUnit (Method/Fluent Syntax) та ByUnitQuerySyntax (Query Syntax).
+* Fluent Syntax: компактний, зручний для простих ланцюжків дій та застосування кастомних методів-розширень.
+* Query Syntax: читабельніший при складному групуванні (group ... by ... into ...) та з'єднанні кількох джерел даних.
+
+### 4. Замір продуктивності Stopwatch (100 000 записів)
+* Без ToList() усередині ланцюжка: 11 ms (Lazy Execution, обробка потоком без зайвого виділення пам'яті).
+* З ToList() усередині ланцюжка: 8 ms.
+* Висновок: Викликання ToList() посеред ланцюжка змушує матеріалізувати проміжну колекцію в оперативній пам'яті, що при великих обсягах даних створює додаткове навантаження на Garbage Collector (GC).
