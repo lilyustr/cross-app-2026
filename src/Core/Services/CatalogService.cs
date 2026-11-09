@@ -1,8 +1,10 @@
-using Core.Domain;
-using Core.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Core.Abstractions;
+using Core.Domain;
 using Core.Events;
 using Core.Storage;
 
@@ -23,7 +25,7 @@ public sealed class CatalogService
     // 2. Приватний метод підняття події (OnChanged)
     private void OnChanged(Product p, CatalogChangeKind kind, int delta)
     {
-        Changed?.Invoke(this, new CatalogChangedEventArgs(p.Id, kind, delta, p.Quantity));//?. гарантує, що якщо немає жодного підписника, виклик просто буде пропущено і програма не впаде
+        Changed?.Invoke(this, new CatalogChangedEventArgs(p.Id, kind, delta, p.Quantity));
     }
 
     // 3. Метод додавання товару
@@ -63,4 +65,61 @@ public sealed class CatalogService
 
     public Product? Find(string id) => _store.GetById(id);
     public IReadOnlyList<Product> All() => _store.List();
+
+    // 6. Асинхронний імпорт всього списку одразу
+    public async Task<int> ImportAsync(
+        ICatalogImporter importer, 
+        string path, 
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+
+        var items = await importer.LoadAsync(path, ct);
+        var added = 0;
+
+        foreach (var item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (_store.GetById(item.Id) is not null) 
+                continue;
+
+            _store.Add(item);
+            OnChanged(item, CatalogChangeKind.Added, item.Quantity);
+            added++;
+        }
+
+        return added;
+    }
+
+    // 7. Додаткове завдання: Потоковий асинхронний імпорт із підтримкою IProgress<int>
+    public async Task<int> ImportStreamAsync(
+        ICatalogImporter importer, 
+        string path, 
+        IProgress<int>? progress = null, 
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+
+        var added = 0;
+        var processed = 0;
+
+        await foreach (var item in importer.StreamAsync(path, ct).WithCancellation(ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            processed++;
+
+            if (_store.GetById(item.Id) is null)
+            {
+                _store.Add(item);
+                OnChanged(item, CatalogChangeKind.Added, item.Quantity);
+                added++;
+            }
+
+            // Передаємо кількість оброблених об'єктів підписнику
+            progress?.Report(processed);
+        }
+
+        return added;
+    }
 }

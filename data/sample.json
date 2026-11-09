@@ -25,11 +25,11 @@
     "sku": "SKU-104",
     "name": "Фарба акрилова",
     "unit": "л",
-    "quantity": -15
+    "quantity": 15
   },
   {
     "id": "P-105",
-    "sku": "",
+    "sku": "SKU-105",
     "name": "Шпатель фасадний",
     "unit": "шт",
     "quantity": 20
