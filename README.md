@@ -255,3 +255,48 @@ dotnet run --project src/Cli
 
 **Примітка щодо покриття:**
 Основна бізнес-логіка модуля `Core` покрита на понад 90%. Непокритими залишаються виключно захисні гілки конструкторів (перевірки `ArgumentNullException`), файлові реалізації сховища (`FileCatalogStore`), які замінені у тестах на `InMemoryCatalogStore` для забезпечення ізольованості тестів, та стандартні серіалізатори, що є повністю прийнятною практикою модульного тестування.
+
+
+
+
+# CrossApp — Лабораторна робота №9
+
+## 📌 Основні властивості
+- Кросплатформність: Відсутність жорстких шляхів. Шляхи будуються відносно AppContext.BaseDirectory через Path.Combine.
+- Багаторівнева конфігурація: Підтримка appsettings.json, appsettings.Development.json, user-secrets, env та аргументів CLI.
+- Атомарність: FileCatalogStore зберігає JSON через тимчасовий файл (.tmp) та File.Move.
+
+## 🔑 Ключі конфігурації
+- EnvironmentName | Джерело: appsettings.json | Env: CROSSAPP_ENVIRONMENT | Опис: Середовище (Development/Production)
+- Storage:DataPath | Джерело: appsettings.json | Env: CROSSAPP_DATA_PATH | Опис: Папка даних
+- Storage:FileName | Джерело: appsettings.json | Env: CROSSAPP_Storage__FileName | Опис: Назва файлу JSON
+- Logging:MinimumLevel | Джерело: appsettings.json | Env: CROSSAPP_Logging__MinimumLevel | Опис: Рівень логування
+- Integration:ApiKey | Джерело: user-secrets | Env: CROSSAPP_Integration__ApiKey | Опис: Ключ API (секрет)
+
+## 🔒 Налаштування User Secrets
+- Ініціалізація: dotnet user-secrets init --project src/Cli
+- Встановлення: dotnet user-secrets set "Integration:ApiKey" "local-dev-key" --project src/Cli
+- Перевірка: dotnet user-secrets list --project src/Cli
+
+Шлях до secrets.json:
+- Windows: %APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json
+- Linux/macOS: ~/.microsoft/usersecrets/<UserSecretsId>/secrets.json
+
+## 🚀 Приклади запуску
+- Експорт з кореня проєкта:
+  dotnet run --project src/Cli -- --export
+
+- Перевірка переносимості з src/Cli:
+  cd src/Cli && dotnet run -- --export
+
+- Зміна шляху даних (PowerShell):
+  $env:CROSSAPP_DATA_PATH = "C:\Users\Public\data"; dotnet run --project src/Cli -- --export
+
+- Зміна шляху даних (Bash / Git Bash):
+  CROSSAPP_DATA_PATH=/tmp/data dotnet run --project src/Cli -- --export
+
+- Запуск тестів:
+  dotnet test
+
+- Перевірка створення файлу на диску:
+  ls -l src/Cli/bin/Debug/net10.0/data/

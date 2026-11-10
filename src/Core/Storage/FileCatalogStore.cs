@@ -1,97 +1,119 @@
-namespace Core.Storage;
-
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Encodings.Web;
-
 using System.Text.Json;
 using Core.Abstractions;
 using Core.Domain;
 using Core.Dto;
 
+namespace Core.Storage;
+
 public sealed class FileCatalogStore : ICatalogStore
 {
-    private static readonly JsonSerializerOptions Options = new()
-{
-    WriteIndented = true,
-    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-};
-    private readonly Dictionary<string, Product> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path;
+    private readonly Dictionary<string, Product> _cache = new();
     private bool _loaded;
+
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     public FileCatalogStore(string path)
     {
-        _path = Path.GetFullPath(path);
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Шлях до файлу не може бути порожнім.", nameof(path));
+
+        _path = path;
     }
 
     private void EnsureLoaded()
     {
         if (_loaded) return;
-
-        if (File.Exists(_path))
+        if (!File.Exists(_path))
         {
-            var json = File.ReadAllText(_path);
-            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(json) ?? new List<ProductDto>();
+            _loaded = true;
+            return;
+        }
 
-            foreach (var dto in dtos)
-            {
-                var p = Product.FromDto(dto);
-                _cache[p.Id] = p;
-            }
+        var json = File.ReadAllText(_path);
+        var dtos = JsonSerializer.Deserialize<List<ProductDto>>(json, Options) ?? [];
+
+        _cache.Clear();
+        foreach (var dto in dtos)
+        {
+            var product = Product.FromDto(dto);
+            _cache[product.Id] = product;
         }
 
         _loaded = true;
     }
 
-    private void Flush() // збереження актуальних даних з оперативної пам'яті на жорсткий диск у JSON-файл
+    private void Flush()
     {
-        var dir = Path.GetDirectoryName(_path);
-        if (!string.IsNullOrEmpty(dir))
+        var dtos = _cache.Values.Select(product => product.ToDto()).ToList();
+        var tmp = _path + ".tmp";
+        
+        var directory = Path.GetDirectoryName(_path);
+        if (!string.IsNullOrEmpty(directory))
         {
-            Directory.CreateDirectory(dir);
+            Directory.CreateDirectory(directory);
         }
 
-        var dtos = _cache.Values.Select(p => p.ToDto()).ToList();
-        var json = JsonSerializer.Serialize(dtos, Options);
-        File.WriteAllText(_path, json);
+        File.WriteAllText(tmp, JsonSerializer.Serialize(dtos, Options));
+        File.Move(tmp, _path, overwrite: true);
     }
 
-    public IReadOnlyList<Product> List()
+    public void Add(Product product)
     {
+        ArgumentNullException.ThrowIfNull(product);
         EnsureLoaded();
-        return _cache.Values.ToList();
+
+        if (_cache.ContainsKey(product.Id))
+            throw new DomainException($"Товар з ID {product.Id} вже існує.");
+
+        _cache[product.Id] = product;
+        Flush();
     }
 
     public Product? GetById(string id)
     {
         EnsureLoaded();
-        return _cache.GetValueOrDefault(id);
+        return _cache.TryGetValue(id, out var product) ? product : null;
     }
 
-    public void Add(Product item)
+    public IReadOnlyList<Product> GetAll()
     {
-        ArgumentNullException.ThrowIfNull(item);
         EnsureLoaded();
-
-        if (_cache.ContainsKey(item.Id))
-            throw new InvalidOperationException($"Запис з id={item.Id} уже існує.");
-
-        _cache.Add(item.Id, item);
-        Flush();
+        return _cache.Values.ToList().AsReadOnly();
     }
 
-    public void Update(Product item)
+    public IReadOnlyList<Product> List()
     {
-        ArgumentNullException.ThrowIfNull(item);
+        return GetAll();
+    }
+
+    public void Update(Product product)
+    {
+        ArgumentNullException.ThrowIfNull(product);
         EnsureLoaded();
 
-        _cache[item.Id] = item;
+        if (!_cache.ContainsKey(product.Id))
+            throw new DomainException($"Товар з ID {product.Id} не знайдено.");
+
+        _cache[product.Id] = product;
         Flush();
     }
 
     public bool Remove(string id)
     {
         EnsureLoaded();
-        if (!_cache.Remove(id)) return false;
+        if (!_cache.Remove(id))
+            return false;
 
         Flush();
         return true;
