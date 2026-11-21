@@ -1,0 +1,63 @@
+@baseUrl = http://localhost:5080
+@productId = replace_with_created_id
+
+### 1. Перевірка стану сервісу (Health Check)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 2. Отримати список усіх товарів (GET list)
+GET {{baseUrl}}/api/products
+Accept: application/json
+
+### 3. Отримати товари з низьким залишком (GET low-stock)
+GET {{baseUrl}}/api/products/low-stock?threshold=5
+Accept: application/json
+
+### 4. Створити новий товар (POST -> 201 Created)
+# @name createProduct
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+
+{
+  "sku": "A-100",
+  "name": "Цемент M400",
+  "unit": "мішок",
+  "quantity": 40
+}
+
+### 5. Перевірка валідації (POST -> 400 Bad Request)
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+
+{
+  "sku": "",
+  "name": "X",
+  "unit": "",
+  "quantity": -1
+}
+
+### 6. Отримати створений товар за id (GET /{id} -> 200 OK)
+GET {{baseUrl}}/api/products/{{productId}}
+Accept: application/json
+
+### 7. Повністю оновити товар (PUT /{id} -> 200 OK)
+PUT {{baseUrl}}/api/products/{{productId}}
+Content-Type: application/json
+
+{
+  "sku": "A-100-UPD",
+  "name": "Цемент M500 (оновлений)",
+  "unit": "мішок",
+  "quantity": 25
+}
+
+### 8. Видалити товар (DELETE /{id} -> 204 No Content)
+DELETE {{baseUrl}}/api/products/{{productId}}
+
+### 9. Перевірити, що товар видалено (GET /{id} -> 404 Not Found)
+GET {{baseUrl}}/api/products/{{productId}}
+Accept: application/json
+
+### Отримати список товарів з пагінацією та пошуком
+GET {{baseUrl}}/api/products?page=1&pageSize=10&search=Cement
+Accept: application/json

@@ -52,7 +52,7 @@ public sealed class FileCatalogStore : ICatalogStore
 
         _loaded = true;
     }
-
+    
     private void Flush()
     {
         var dtos = _cache.Values.Select(product => product.ToDto()).ToList();

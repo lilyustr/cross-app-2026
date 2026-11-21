@@ -300,3 +300,76 @@ dotnet run --project src/Cli
 
 - Перевірка створення файлу на диску:
   ls -l src/Cli/bin/Debug/net10.0/data/
+
+
+
+## Лабораторна робота №10 — Minimal API (`src/Api`)
+
+### Запуск сервера
+API запускається на фіксованому порту **`5080`**:
+
+    dotnet run --project src/Api
+
+* **OpenAPI JSON:** `http://localhost:5080/openapi/v1.json`
+* **Scalar UI (інтерактивна документація):** `http://localhost:5080/scalar/v1`
+
+---
+
+### Приклади перевірки через `curl`
+
+1. **Перевірка стану сервісу (`200 OK`):**
+
+    curl -i http://localhost:5080/health
+
+2. **Створення товару (`201 Created` + заголовок `Location`):**
+
+    curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d '{"sku":"A-100","name":"Cement M400","unit":"bag","quantity":40}'
+
+3. **Список товарів із пагінацією та пошуком (`200 OK`):**
+
+    curl -i "http://localhost:5080/api/products?page=1&pageSize=20&search=Cement"
+
+4. **Отримання товару за ID (`200 OK` або `404 Not Found`):**
+
+    curl -i http://localhost:5080/api/products/<id>
+
+5. **Фільтр товарів із низьким залишком (`200 OK`):**
+
+    curl -i "http://localhost:5080/api/products/low-stock?threshold=5"
+
+6. **Оновлення товару (`200 OK`):**
+
+    curl -i -X PUT http://localhost:5080/api/products/<id> -H "Content-Type: application/json" -d '{"sku":"A-100","name":"Cement M500","unit":"bag","quantity":25}'
+
+7. **Видалення товару (`204 No Content`):**
+
+    curl -i -X DELETE http://localhost:5080/api/products/<id>
+
+8. **Перевірка валідації (`400 Bad Request`, RFC 9457 `ValidationProblemDetails`):**
+
+    curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d '{"sku":"","name":"X","unit":"","quantity":-1}'
+
+9. **Перевірка бізнес-конфлікту дубліката SKU (`409 Conflict`, `DomainException`):**
+
+    curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" -d '{"sku":"A-100","name":"Cement M400","unit":"bag","quantity":40}'
+
+---
+
+### Збірка та запуск тестів (юніт + інтеграційні `WebApplicationFactory`)
+
+    dotnet build
+    dotnet test
+    
+### Додаткові можливості Web API (Лабораторна №10)
+
+* **Пагінація та пошук:** маршрут `GET /api/products?page=1&pageSize=20&search=...` підтримує фільтрацію за назвою або артикулом (`Sku`) і повертає структуру `{ items, total, page, pageSize }` з валідацією параметрів запиту (`400 Bad Request` при виході за межі допустимих значень).
+     curl -i "http://localhost:5080/api/products?page=1&pageSize=2&search=Cement"
+
+* **Валідація через FluentValidation:** правила перевірки `SaveProductRequest` винесені у `SaveProductRequestValidator` та автоматично виконуються через універсальний фільтр `ValidationFilter<T>` (`.AddEndpointFilter(...)`), повертаючи `ValidationProblemDetails` (RFC 9457).
+* **Обробка бізнес-конфліктів (`409 Conflict`):** спроба створити або оновити товар із дубльованим `Sku` генерує `DomainException`, який перехоплюється `DomainExceptionHandler` (`IExceptionHandler`) і повертається клієнту у форматі `ProblemDetails` зі статусом `409 Conflict`.
+* **Інтеграційне тестування (`tests/Api.Tests`):** реалізовано автоматичні тести на базі `WebApplicationFactory<Program>`, що перевіряють сценарії `POST` (`201 Created` + заголовок `Location`), подальший `GET` (`200 OK`), валідацію (`400 Bad Request`) та конфлікт дублікатів (`409 Conflict`).
+dotnet test tests/Api.Tests
+
+#### Запуск інтеграційних тестів
+```bash
+dotnet test
